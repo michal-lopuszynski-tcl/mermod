@@ -2,10 +2,10 @@ import copy
 import logging
 import pathlib
 
-import helpers
 import pytest
 import torch
 
+import helpers
 import mermod
 
 logger = logging.getLogger(__name__)
@@ -33,22 +33,58 @@ def check_config(config, device, sd_path: pathlib.Path):
 
     for k, wk_exp in sd_exp.items():
         wk = sd[k]
-        torch.testing.assert_close(wk, wk_exp)
+        torch.testing.assert_close(wk.cpu(), wk_exp.cpu())
 
 
-def test_dummy_abs_diff_ties0_cpu(tmp_path: pathlib.Path):
+def test_abs_diff_ties0_cpu(tmp_path: pathlib.Path):
     check_config(helpers.CONFIG_ABS_DIFF_TIES0, "cpu", tmp_path)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="cuda not available")
-def test_dummy_abs_diff_ties0_cuda(tmp_path: pathlib.Path):
+def test_abs_diff_ties0_cuda(tmp_path: pathlib.Path):
     check_config(helpers.CONFIG_ABS_DIFF_TIES0, "cuda", tmp_path)
 
 
-def test_dummy_abs_diff_ties1_cpu(tmp_path: pathlib.Path):
+def test_abs_diff_ties1_cpu(tmp_path: pathlib.Path):
     check_config(helpers.CONFIG_ABS_DIFF_TIES1, "cpu", tmp_path)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="cuda not available")
-def test_dummy_abs_diff_ties1_cuda(tmp_path: pathlib.Path):
+def test_abs_diff_ties1_cuda(tmp_path: pathlib.Path):
     check_config(helpers.CONFIG_ABS_DIFF_TIES1, "cuda", tmp_path)
+
+
+def test_joint_abs_diff_ties0_cpu(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_JOINT_ABS_DIFF_TIES0, "cpu", tmp_path)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="cuda not available")
+def test_joint_abs_diff_ties0_cuda(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_JOINT_ABS_DIFF_TIES0, "cuda", tmp_path)
+
+
+def test_joint_abs_diff_ties1_cpu(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_JOINT_ABS_DIFF_TIES1, "cpu", tmp_path)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="cuda not available")
+def test_joint_abs_diff_ties1_cuda(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_JOINT_ABS_DIFF_TIES1, "cuda", tmp_path)
+
+
+def test_dare_ties1_cpu(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_DARE_TIES1_CPU, "cpu", tmp_path)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="cuda not available")
+def test_dare_ties1_cuda(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_DARE_TIES1_CUDA, "cuda", tmp_path)
+
+
+def test_dare_disjoint_ties1_cpu(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_DARE_DISJOINT_TIES1_CPU, "cpu", tmp_path)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="cuda not available")
+def test_dare_disjoint_ties1_cuda(tmp_path: pathlib.Path):
+    check_config(helpers.CONFIG_DARE_DISJOINT_TIES1_CUDA, "cuda", tmp_path)

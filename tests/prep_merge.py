@@ -1,11 +1,14 @@
 import copy
 import logging
 import os
+import pathlib
 
-import helpers
 import torch
 
+import helpers
 import mermod
+
+logger = logging.getLogger(__name__)
 
 
 def setup_logging():
@@ -24,9 +27,12 @@ def setup_logging():
 
 def merge(config):
     config_merge = copy.deepcopy(config)
+
     sd_fname_template = "tmp_%02d.pt"
     sd = helpers.gen_state_dict(config["sd_base_path"])
-    config_merge["sd_base_path"] = sd_fname_template % 0
+    sd_base_path = sd_fname_template % 0
+    config_merge["sd_base_path"] = sd_base_path
+    paths_to_del = [sd_base_path]
     torch.save(sd, config_merge["sd_base_path"])
 
     for i, (k, seed) in enumerate(config["sd_merged_paths"].items(), start=1):
@@ -34,14 +40,40 @@ def merge(config):
         sd_fname = sd_fname_template % i
         config_merge["sd_merged_paths"][k] = sd_fname
         torch.save(sd, sd_fname)
+        paths_to_del.append(sd_fname)
+    try:
+        _, seed_dict, timing_dict = mermod.merge(**config_merge)
+    finally:
+        for p in paths_to_del:
+            pathlib.Path(p).unlink()
 
-    mermod.merge(**config_merge)
+    print(seed_dict)
+
     out_path = config_merge["sd_output_path"]
     cmd = f"chmod ugo-w {out_path}"
     os.system(cmd)
 
 
 if __name__ == "__main__":
+    IGNORE_EXCEPTIONS = False
+
     setup_logging()
-    merge(helpers.CONFIG_ABS_DIFF_TIES1)
-    merge(helpers.CONFIG_ABS_DIFF_TIES0)
+    configs = [
+        helpers.CONFIG_ABS_DIFF_TIES0,
+        helpers.CONFIG_ABS_DIFF_TIES1,
+        helpers.CONFIG_JOINT_ABS_DIFF_TIES0,
+        helpers.CONFIG_JOINT_ABS_DIFF_TIES1,
+        helpers.CONFIG_DARE_TIES1_CPU,
+        helpers.CONFIG_DARE_TIES1_CUDA,
+        helpers.CONFIG_DARE_DISJOINT_TIES1_CPU,
+        helpers.CONFIG_DARE_DISJOINT_TIES1_CUDA,
+    ]
+
+    for c in configs:
+        try:
+            merge(c)
+        except Exception as e:
+            if IGNORE_EXCEPTIONS:
+                logger.error(f"Exception {e=}")
+            else:
+                raise e
