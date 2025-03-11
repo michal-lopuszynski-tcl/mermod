@@ -2,10 +2,10 @@ import copy
 import logging
 import pathlib
 
+import helpers
 import pytest
 import torch
 
-import helpers
 import mermod
 
 logger = logging.getLogger(__name__)
@@ -17,8 +17,9 @@ def check_config(config, device, sd_path: pathlib.Path):
     config_merge["merge_device"] = device
     sd_fname_template = "tmp_%02d.pt"
     sd = helpers.gen_state_dict(config["sd_base_path"])
-    config_merge["sd_base_path"] = sd_fname_template % 0
-    torch.save(sd, config_merge["sd_base_path"])
+    sd_fname = sd_path / (sd_fname_template % 0)
+    config_merge["sd_base_path"] = sd_fname
+    torch.save(sd, sd_fname)
 
     for i, (k, seed) in enumerate(config["sd_merged_paths"].items(), start=1):
         sd = helpers.gen_state_dict(seed)

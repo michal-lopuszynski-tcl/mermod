@@ -3,9 +3,9 @@ import logging
 import os
 import pathlib
 
+import helpers
 import torch
 
-import helpers
 import mermod
 
 logger = logging.getLogger(__name__)
