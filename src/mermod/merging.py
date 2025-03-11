@@ -832,30 +832,29 @@ def merge(
     tot_t_compute, tot_t_io = 0.0, 0.0
 
     merging_tmp_dir = mkdir_tmp()
+    try:
+        partial_paths, seed_dict, (t_compute, t_io) = _merge(
+            sd_base_path=sd_base_path,
+            sd_merged_paths=sd_merged_paths,
+            method=method,
+            sparsity=sparsity,
+            use_ties=use_ties,
+            lambda_param=lambda_param,
+            weight_batch_size=weight_batch_size,
+            weight_batches_custom=weight_batches_custom,
+            merging_tmp_dir=merging_tmp_dir,
+            seed_dict=seed_dict,
+            device=merge_device,
+        )
+        tot_t_compute += t_compute
+        tot_t_io += t_io
 
-    partial_paths, seed_dict, (t_compute, t_io) = _merge(
-        sd_base_path=sd_base_path,
-        sd_merged_paths=sd_merged_paths,
-        method=method,
-        sparsity=sparsity,
-        use_ties=use_ties,
-        lambda_param=lambda_param,
-        weight_batch_size=weight_batch_size,
-        weight_batches_custom=weight_batches_custom,
-        merging_tmp_dir=merging_tmp_dir,
-        seed_dict=seed_dict,
-        device=merge_device,
-    )
-    tot_t_compute += t_compute
-    tot_t_io += t_io
-
-    merge_device = torch.device("cpu")
-    sd, t_io = merge_partial_sds(sd_output_path, partial_paths, merge_device)
-    tot_t_io += t_io
-    log_memory("after merging")
-
-    shutil.rmtree(merging_tmp_dir)
-
+        merge_device = torch.device("cpu")
+        sd, t_io = merge_partial_sds(sd_output_path, partial_paths, merge_device)
+        tot_t_io += t_io
+        log_memory("after merging")
+    finally:
+        shutil.rmtree(merging_tmp_dir)
     time_full = time.perf_counter() - start
     logger.info(f"Merge time io:      {tot_t_io/60.0:6.2f} min")
     logger.info(f"Merge time compute: {tot_t_compute/60.0:6.2f} min")
