@@ -10,7 +10,6 @@ import sys
 import time
 from typing import Any, Optional
 
-import psutil
 import torch
 
 logger = logging.getLogger(__name__)
@@ -140,10 +139,11 @@ def merge_partial_sds(output_path, partial_sd_paths, device):
     return sd, merging_time
 
 
-def get_cpu_reserved_memory_gb_psutil():
-    process = psutil.Process(os.getpid())
-    mem = process.memory_info().rss / float(2**30)
-    return mem
+# def get_cpu_reserved_memory_gb_psutil():
+#     import psutil
+#     process = psutil.Process(os.getpid())
+#     mem = process.memory_info().rss / float(2**30)
+#     return mem
 
 
 def get_cpu_reserved_memory_gb():
@@ -676,7 +676,7 @@ def merge_to_base_sd(
 def log_sd(sd_name, sd):
     sd_size = 0
     for k, v in sd.items():
-        sd_size += sys.getsizeof(v.storage())
+        sd_size += sys.getsizeof(v.untyped_storage())
     logger.info(f"MEM {sd_name}: len={len(sd)} size={sd_size/1024**3:.2f} GB")
 
 
