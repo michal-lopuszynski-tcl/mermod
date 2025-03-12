@@ -13,6 +13,8 @@ import torch
 
 from . import utils
 
+HF_MODEL_INDEX_FNAME = "model.safetensors.index.json"
+
 logger = logging.getLogger(__file__)
 
 
@@ -60,7 +62,7 @@ def _get_weight_names_safetensors(sd_path: pathlib.Path):
 
 def _get_weight_names_hf(sd_path):
     start = time.perf_counter()
-    with open(sd_path / "model.safetensors.index.json") as f:
+    with open(sd_path / HF_MODEL_INDEX_FNAME) as f:
         index = json.load(f)
     names = list(index["weight_map"].keys())
     loading_time = time.perf_counter() - start
@@ -100,7 +102,7 @@ def _load_partial_sd_pt(sd_path, weight_names: Optional[list[str]], device):
 def _load_partial_sd_safetensors_in_palce(
     partial_sd, sd_path, weight_names, device
 ) -> None:
-    with safetensors.safe_open(sd_path, framework="pytorch", device=device) as f:
+    with safetensors.safe_open(sd_path, framework="pytorch", device=str(device)) as f:
         if weight_names is None:
             for wn in f.keys():
                 partial_sd[wn] = f.get_tensor(wn)
@@ -122,7 +124,7 @@ def _load_partial_sd_safetensors(sd_path, weight_names, device):
 
 def _load_partial_sd_hf(sd_path, weight_names, device):
     start = time.perf_counter()
-    with open(sd_path / "model.safetensors.index.json") as f:
+    with open(sd_path / HF_MODEL_INDEX_FNAME) as f:
         index = json.load(f)
     weight_name_to_sd_path = index["weight_map"]
     if weight_names is None:

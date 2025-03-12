@@ -1,5 +1,6 @@
 import functools
 import gc
+import json
 import logging
 import shutil
 import sys
@@ -423,6 +424,9 @@ def _merge_one_batch(
         seed_dict_new.update(partial_seed_dict)
 
     tot_t_io += io.save_partial_sd(base_partial_sd, sd_out_path)
+    tot_tensors_size = 0
+    for tensor in base_partial_sd.values():
+        tot_tensors_size += tensor.element_size() * tensor.nelement()
 
     for k in merged_partial_sds:
         v = merged_partial_sds[k]
@@ -435,7 +439,20 @@ def _merge_one_batch(
 
     gc.collect()
 
-    return tot_t_compute, tot_t_io
+    return tot_tensors_size, tot_t_compute, tot_t_io
+
+
+def _get_empty_hf_index():
+    return {"metadata": {"total_size": 0}, "weight_map": {}}
+
+
+def _update_hf_index_in_place(hf_index, names_batch, sd_fname, batch_tot_tensors_size):
+    hf_index["metadata"]["total_size"] += batch_tot_tensors_size
+    weight_map = hf_index["weight_map"]
+
+    for wn in names_batch:
+        assert wn not in weight_map
+        weight_map[wn] = sd_fname
 
 
 def _merge(
@@ -462,7 +479,7 @@ def _merge(
         weight_names=weight_names,
         weight_batch_size=weight_batch_size,
         weight_batches_custom=weight_batches_custom,
-        reverse=True,
+        reverse=False,
     )
 
     n_weights = len(weight_names)
@@ -471,13 +488,14 @@ def _merge(
     logger.info(f"{n_weights=} {n_batches=} {weight_batch_size=}")
 
     seed_dict_new = {}
+    hf_index = _get_empty_hf_index()
 
     for i, names_batch in enumerate(weights_names_batches, start=1):
         mem1 = utils.get_cpu_reserved_memory_gb()
         mem1_gpu = utils.get_gpu_reserved_memory_gb()
-
-        sd_out_path = merging_tmp_dir / f"sd-{i:05d}-{n_batches:05d}.pth"
-        t_compute, t_io = _merge_one_batch(
+        sd_fname = f"model-{i:05d}-{n_batches:05d}.safetensors"
+        sd_out_path = merging_tmp_dir / sd_fname
+        batch_tot_tensors_size, t_compute, t_io = _merge_one_batch(
             sd_base_path=sd_base_path,
             sd_merged_paths=sd_merged_paths,
             sd_out_path=sd_out_path,
@@ -489,6 +507,12 @@ def _merge(
             seed_dict=seed_dict,
             seed_dict_new=seed_dict_new,
             device=device,
+        )
+        _update_hf_index_in_place(
+            hf_index=hf_index,
+            names_batch=names_batch,
+            sd_fname=sd_fname,
+            batch_tot_tensors_size=batch_tot_tensors_size,
         )
         tot_t_compute += t_compute
         tot_t_io += t_io
@@ -505,6 +529,9 @@ def _merge(
         memd = mem1_gpu - mem2_gpu
         msg = f"{prefix} {mem1_gpu:.2f} -> {mem2_gpu:.2f} GB [collected {memd:.2f} GB]"
         logger.info(msg)
+
+    with open(merging_tmp_dir / io.HF_MODEL_INDEX_FNAME, "wt") as f:
+        json.dump(hf_index, f)
 
     if seed_dict is None:
         return partial_paths, seed_dict_new, (tot_t_compute, tot_t_io)
@@ -554,6 +581,7 @@ def merge(
         utils.log_memory(logger, "after merging")
     finally:
         shutil.rmtree(merging_tmp_dir)
+
     time_full = time.perf_counter() - start
     logger.info(f"Merge time io:      {tot_t_io/60.0:6.2f} min")
     logger.info(f"Merge time compute: {tot_t_compute/60.0:6.2f} min")
