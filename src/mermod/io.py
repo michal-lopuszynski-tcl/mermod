@@ -100,7 +100,6 @@ def _load_partial_sd_pt(sd_path, weight_names: Optional[list[str]], device):
 def _load_partial_sd_safetensors_in_palce(
     partial_sd, sd_path, weight_names, device
 ) -> None:
-
     with safetensors.safe_open(sd_path, framework="pytorch", device=device) as f:
         if weight_names is None:
             for wn in f.keys():
@@ -126,14 +125,17 @@ def _load_partial_sd_hf(sd_path, weight_names, device):
     with open(sd_path / "model.safetensors.index.json") as f:
         index = json.load(f)
     weight_name_to_sd_path = index["weight_map"]
+    if weight_names is None:
+        weight_names = list(weight_name_to_sd_path.keys())
+
     sd_path_to_weight_names = {}
 
     for wn in weight_names:
-        sd_path = weight_name_to_sd_path[wn]
-        if sd_path in sd_path_to_weight_names:
-            sd_path_to_weight_names[sd_path].append(wn)
+        wn_sd_path = sd_path / weight_name_to_sd_path[wn]
+        if wn_sd_path in sd_path_to_weight_names:
+            sd_path_to_weight_names[wn_sd_path].append(wn)
         else:
-            sd_path_to_weight_names[sd_path] = [wn]
+            sd_path_to_weight_names[wn_sd_path] = [wn]
 
     sd = collections.OrderedDict()
     for c_sd_path, c_weight_names in sd_path_to_weight_names.items():
@@ -150,7 +152,7 @@ def load_partial_sd(sd_path, weight_names, device):
     elif sd_type == "safetensors":
         return _load_partial_sd_safetensors(sd_path, weight_names, device)
     elif sd_type == "hf":
-        return _load_partial_sd_hf(sd_path)
+        return _load_partial_sd_hf(sd_path, weight_names, device)
     else:
         raise ValueError(f"Unsupported {sd_type=}")
 
