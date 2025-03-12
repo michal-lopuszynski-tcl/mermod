@@ -54,22 +54,6 @@ def prepare_batches(*, weight_names, weight_batch_size, weight_batches_custom, r
     return res
 
 
-def merge_partial_sds(output_path, partial_sd_paths, device):
-    start = time.perf_counter()
-    sd = torch.load(partial_sd_paths[0], weights_only=True, map_location=device)
-    for sdp in partial_sd_paths[1:]:
-        sd.update(torch.load(sdp, weights_only=True))
-    merging_time = time.perf_counter() - start
-
-    n_sds = len(partial_sd_paths)
-    n_weights = len(sd)
-
-    torch.save(sd, output_path)
-    logger.info(f"t = {merging_time:5.2f} s - merging {n_sds=} with {n_weights=}")
-
-    return sd, merging_time
-
-
 # MERGING LOGIC
 
 # def get_random_diff(diff: torch.Tensor, sparsity: float, seed, device):
@@ -412,12 +396,12 @@ def _merge_one_batch(
     device,
 ):
     tot_t_compute, tot_t_io = 0.0, 0.0
-    base_partial_sd, t_io = io.load_partial_sd(sd_base_path, names_batch, device)
+    base_partial_sd, t_io = io._load_partial_sd_pt(sd_base_path, names_batch, device)
     tot_t_io += t_io
 
     merged_partial_sds = {}
     for sd_name, sd_path in sd_merged_paths.items():
-        sd, t_io = io.load_partial_sd(sd_path, names_batch, device)
+        sd, t_io = io._load_partial_sd_pt(sd_path, names_batch, device)
         tot_t_io += t_io
         merged_partial_sds[sd_name] = sd
         log_sd(sd_name, sd)
@@ -565,7 +549,7 @@ def merge(
         tot_t_io += t_io
 
         merge_device = torch.device("cpu")
-        sd, t_io = merge_partial_sds(sd_output_path, partial_paths, merge_device)
+        sd, t_io = io.merge_partial_sds(sd_output_path, partial_paths, merge_device)
         tot_t_io += t_io
         utils.log_memory(logger, "after merging")
     finally:
