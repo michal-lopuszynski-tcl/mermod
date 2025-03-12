@@ -8,6 +8,7 @@ import time
 from typing import Optional
 
 import safetensors
+import safetensors.torch
 import torch
 
 from . import utils
@@ -190,6 +191,7 @@ def save_partial_sd(sd, sd_path):
 
 def merge_partial_sds(output_path, partial_sd_paths, device):
     start = time.perf_counter()
+    output_path = pathlib.Path(output_path)
     sd, _ = load_partial_sd(partial_sd_paths[0], None, device)
     for sd_path in partial_sd_paths[1:]:
         sd_new, _ = load_partial_sd(sd_path, None, device)

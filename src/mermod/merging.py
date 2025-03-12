@@ -396,12 +396,12 @@ def _merge_one_batch(
     device,
 ):
     tot_t_compute, tot_t_io = 0.0, 0.0
-    base_partial_sd, t_io = io._load_partial_sd_pt(sd_base_path, names_batch, device)
+    base_partial_sd, t_io = io.load_partial_sd(sd_base_path, names_batch, device)
     tot_t_io += t_io
 
     merged_partial_sds = {}
     for sd_name, sd_path in sd_merged_paths.items():
-        sd, t_io = io._load_partial_sd_pt(sd_path, names_batch, device)
+        sd, t_io = io.load_partial_sd(sd_path, names_batch, device)
         tot_t_io += t_io
         merged_partial_sds[sd_name] = sd
         log_sd(sd_name, sd)
