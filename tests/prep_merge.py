@@ -25,7 +25,7 @@ def setup_logging():
         logging.getLogger(module_name).setLevel(logging.INFO)
 
 
-def merge(config):
+def merge(config, safetensors):
     config_merge = copy.deepcopy(config)
 
     sd_fname_template = "tmp_%02d.pt"
@@ -41,6 +41,12 @@ def merge(config):
         config_merge["sd_merged_paths"][k] = sd_fname
         torch.save(sd, sd_fname)
         paths_to_del.append(sd_fname)
+
+    if safetensors:
+        p = pathlib.Path(config_merge["sd_output_path"])
+        new_p = pathlib.Path("tests/data_safetensors/") / (p.stem + ".safetensors")
+        config_merge["sd_output_path"] = new_p
+
     try:
         _, seed_dict, timing_dict = mermod.merge(**config_merge)
     finally:
@@ -71,7 +77,9 @@ if __name__ == "__main__":
 
     for c in configs:
         try:
-            merge(c)
+            merge(c, safetensors=False)
+            # Perhaps this will be useful at some point
+            # merge(c, safetensors=True)
         except Exception as e:
             if IGNORE_EXCEPTIONS:
                 logger.error(f"Exception {e=}")
