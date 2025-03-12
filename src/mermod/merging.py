@@ -2,6 +2,7 @@ import functools
 import gc
 import json
 import logging
+import pathlib
 import shutil
 import sys
 import time
@@ -53,17 +54,6 @@ def prepare_batches(*, weight_names, weight_batch_size, weight_batches_custom, r
         res = partition_to_batches(weight_names, weight_batch_size, reverse)
     check_if_unique(res)
     return res
-
-
-# MERGING LOGIC
-
-# def get_random_diff(diff: torch.Tensor, sparsity: float, seed, device):
-#     gen = torch.Generator()
-#     gen.manual_seed(seed)
-#     rand_tensor = torch.rand(size=diff.shape, generator=gen)
-#     mask = torch.where(rand_tensor > sparsity, 1.0, 0.0)
-#     mask = mask.to(device)
-#     return diff * mask, mask
 
 
 def get_tensor_size_mb(w: torch.Tensor) -> float:
@@ -556,8 +546,14 @@ def merge(
     logger.info(f"{merge_device=}")
     start = time.perf_counter()
     tot_t_compute, tot_t_io = 0.0, 0.0
+    sd_output_path = pathlib.Path(sd_output_path)
 
-    merging_tmp_dir = io.mkdir_tmp()
+    if io.get_sd_type(sd_output_path, should_exist=False) == io.FORMAT_HF:
+        merging_tmp_dir = sd_output_path
+        merging_tmp_dir.mkdir(exist_ok=True)
+    else:
+        merging_tmp_dir = io.mkdir_tmp()
+
     try:
         partial_paths, seed_dict, (t_compute, t_io) = _merge(
             sd_base_path=sd_base_path,
@@ -576,11 +572,13 @@ def merge(
         tot_t_io += t_io
 
         merge_device = torch.device("cpu")
-        sd, t_io = io.merge_partial_sds(sd_output_path, partial_paths, merge_device)
+        if merging_tmp_dir != sd_output_path:
+            t_io = io.merge_partial_sds(sd_output_path, partial_paths, merge_device)
         tot_t_io += t_io
         utils.log_memory(logger, "after merging")
     finally:
-        shutil.rmtree(merging_tmp_dir)
+        if merging_tmp_dir != sd_output_path:
+            shutil.rmtree(merging_tmp_dir)
 
     time_full = time.perf_counter() - start
     logger.info(f"Merge time io:      {tot_t_io/60.0:6.2f} min")
@@ -591,4 +589,4 @@ def merge(
         "merge_time_compute": tot_t_compute,
         "merge_time_total": time_full,
     }
-    return sd, seed_dict, timing_dict
+    return seed_dict, timing_dict

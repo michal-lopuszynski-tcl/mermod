@@ -215,4 +215,4 @@ def merge_partial_sds(output_path, partial_sd_paths, device):
         raise ValueError("Merging state_dicts to hf format not implemented yet")
     logger.info(f"t = {merging_time:5.2f} s - merging {n_sds=} with {n_weights=}")
 
-    return sd, merging_time
+    return merging_time
