@@ -13,6 +13,11 @@ import torch
 
 from . import utils
 
+FORMAT_HF = "hf"
+FORMAT_PT = "pt"
+FORMAT_SAFETENSORS = "safetensors"
+
+
 HF_MODEL_INDEX_FNAME = "model.safetensors.index.json"
 
 logger = logging.getLogger(__file__)
@@ -31,11 +36,11 @@ def get_sd_type(sd_path: pathlib.Path, should_exist: bool = True) -> str:
         raise FileNotFoundError(f"File {sd_path} not found")
 
     if sd_path.name.endswith(".pt") or sd_path.name.endswith(".pth"):
-        return "pt"
+        return FORMAT_PT
     elif sd_path.name.endswith(".safetensors"):
-        return "safetensors"
+        return FORMAT_SAFETENSORS
     elif not sd_path.exists() or sd_path.is_dir():
-        return "hf"
+        return FORMAT_HF
     else:
         raise ValueError(f"Unrecognized checkpoint path in {sd_path}")
 
@@ -54,7 +59,7 @@ def _get_weight_names_pt(sd_path):
 
 def _get_weight_names_safetensors(sd_path: pathlib.Path):
     start = time.perf_counter()
-    with safetensors.safe_open(sd_path, framework="pt", device="cpu") as f:
+    with safetensors.safe_open(sd_path, framework=FORMAT_PT, device="cpu") as f:
         names = list(f.keys())
     loading_time = time.perf_counter() - start
     return names, loading_time
@@ -72,11 +77,11 @@ def _get_weight_names_hf(sd_path):
 def get_weight_names(sd_path):
     sd_path = pathlib.Path(sd_path)
     sd_type = get_sd_type(sd_path)
-    if sd_type == "pt":
+    if sd_type == FORMAT_PT:
         return _get_weight_names_pt(sd_path)
-    elif sd_type == "safetensors":
+    elif sd_type == FORMAT_SAFETENSORS:
         return _get_weight_names_safetensors(sd_path)
-    elif sd_type == "hf":
+    elif sd_type == FORMAT_HF:
         return _get_weight_names_hf(sd_path)
     else:
         raise ValueError(f"Unsupported {sd_type=}")
@@ -149,11 +154,11 @@ def _load_partial_sd_hf(sd_path, weight_names, device):
 def load_partial_sd(sd_path, weight_names, device):
     sd_path = pathlib.Path(sd_path)
     sd_type = get_sd_type(sd_path)
-    if sd_type == "pt":
+    if sd_type == FORMAT_PT:
         return _load_partial_sd_pt(sd_path, weight_names, device)
-    elif sd_type == "safetensors":
+    elif sd_type == FORMAT_SAFETENSORS:
         return _load_partial_sd_safetensors(sd_path, weight_names, device)
-    elif sd_type == "hf":
+    elif sd_type == FORMAT_HF:
         return _load_partial_sd_hf(sd_path, weight_names, device)
     else:
         raise ValueError(f"Unsupported {sd_type=}")
@@ -182,11 +187,11 @@ def _save_partial_sd_safetensors(sd, sd_path):
 def save_partial_sd(sd, sd_path):
     sd_path = pathlib.Path(sd_path)
     sd_type = get_sd_type(sd_path, should_exist=False)
-    if sd_type == "pt":
+    if sd_type == FORMAT_PT:
         return _save_partial_sd_pt(sd, sd_path)
-    elif sd_type == "safetensors":
+    elif sd_type == FORMAT_SAFETENSORS:
         return _save_partial_sd_safetensors(sd, sd_path)
-    elif sd_type == "hf":
+    elif sd_type == FORMAT_HF:
         msg = f"Saving to HF sharded format not yes implemented {sd_path=}"
         raise NotImplementedError(msg)
     else:
@@ -204,7 +209,7 @@ def merge_partial_sds(output_path, partial_sd_paths, device):
 
     n_sds = len(partial_sd_paths)
     n_weights = len(sd)
-    if get_sd_type(output_path, should_exist=False) != "hf":
+    if get_sd_type(output_path, should_exist=False) != FORMAT_HF:
         save_partial_sd(sd, output_path)
     else:
         raise ValueError("Merging state_dicts to hf format not implemented yet")
