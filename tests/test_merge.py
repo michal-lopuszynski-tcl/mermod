@@ -34,7 +34,7 @@ def check_config(config, device, sd_path: pathlib.Path, data_format):
         config_merge["sd_merged_paths"][k] = sd_fname
         mermod.io.save_partial_sd(sd, sd_fname)
 
-    mermod.merge(**config_merge)
+    mermod.merge(**config_merge, use_progress_bar=False)
     sd, _ = mermod.io.load_partial_sd(config_merge["sd_output_path"], None, device)
     sd_exp, _ = mermod.io.load_partial_sd(config["sd_output_path"], None, device)
     assert set(sd.keys()) == set(sd_exp.keys())
