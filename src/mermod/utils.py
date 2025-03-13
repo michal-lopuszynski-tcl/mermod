@@ -4,6 +4,11 @@ import os
 
 import torch
 
+try:
+    import enlighten
+except ImportError:
+    enlighten = None
+
 logger = logging.getLogger(__file__)
 
 
@@ -72,3 +77,35 @@ def free_memory(msg: str = "") -> None:
     if msg:
         info + f" {msg}"
     logger.info(info)
+
+
+class ProgressBar:
+
+    def __init__(self, total, enabled, desc, units):
+        self.enabled = enabled
+        self.total = total
+        self.desc = desc
+        self.units = units
+        self.manager = None
+        self.counter = None
+
+    def __enter__(self):
+        if self.enabled and enlighten is not None:
+            self.manager = enlighten.get_manager()
+            self.manager = self.manager.__enter__()
+            self.counter = self.manager.counter(
+                total=self.total, desc=self.desc, units=self.units
+            )
+            self.counter = self.counter.__enter__()
+        return self
+
+    def update(self, incr: int = 1):
+        if self.counter is not None:
+            self.counter.update(incr=incr)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.enabled and enlighten is not None:
+            if self.counter is not None:
+                self.counter.__exit__(exc_type, exc_val, exc_tb)
+            if self.manager is not None:
+                return self.manager.__exit__(exc_type, exc_val, exc_tb)

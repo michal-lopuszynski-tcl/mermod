@@ -201,6 +201,7 @@ def merge_to_base_sd(
     use_ties: bool = False,
     seed_dict: Optional[dict[str, int]] = None,
     device: torch.device,
+    progress_bar,
 ):
     # TODO Matter only for abs_diff, either remove them totally or put them in config
     per_row = False
@@ -355,6 +356,8 @@ def merge_to_base_sd(
         gc.collect()
         utils.free_memory()
         msg = f"Finished weight {k} of {n}: {weight_name} [{weight_size:.1f} MB]"
+        logger.info(msg)
+        progress_bar.update()
 
     time_merging = time.perf_counter() - start
     logger.info(f"t = {time_merging:5.2f} s - merging {len(base_sd)} layers")
@@ -385,6 +388,7 @@ def _merge_one_batch(
     seed_dict_new,
     sd_out_path,
     device,
+    progress_bar,
 ):
     tot_t_compute, tot_t_io = 0.0, 0.0
     base_partial_sd, t_io = io.load_partial_sd(sd_base_path, names_batch, device)
@@ -407,6 +411,7 @@ def _merge_one_batch(
             use_ties=use_ties,
             seed_dict=seed_dict,
             device=device,
+            progress_bar=progress_bar,
         )
     tot_t_compute += t_compute
 
@@ -458,6 +463,7 @@ def _merge(
     seed_dict,
     merging_tmp_dir,
     device,
+    use_progress_bar,
 ):
     tot_t_io, tot_t_compute = 0.0, 0.0
     logger.info(f"{sd_base_path=}")
@@ -480,34 +486,41 @@ def _merge(
     seed_dict_new = {}
     hf_index = _get_empty_hf_index()
 
-    for i, names_batch in enumerate(weights_names_batches, start=1):
-        mem1 = utils.get_cpu_reserved_memory_gb()
-        mem1_gpu = utils.get_gpu_reserved_memory_gb()
-        sd_fname = f"model-{i:05d}-{n_batches:05d}.safetensors"
-        sd_out_path = merging_tmp_dir / sd_fname
-        batch_tot_tensors_size, t_compute, t_io = _merge_one_batch(
-            sd_base_path=sd_base_path,
-            sd_merged_paths=sd_merged_paths,
-            sd_out_path=sd_out_path,
-            names_batch=names_batch,
-            method=method,
-            sparsity=sparsity,
-            use_ties=use_ties,
-            lambda_param=lambda_param,
-            seed_dict=seed_dict,
-            seed_dict_new=seed_dict_new,
-            device=device,
-        )
-        _update_hf_index_in_place(
-            hf_index=hf_index,
-            names_batch=names_batch,
-            sd_fname=sd_fname,
-            batch_tot_tensors_size=batch_tot_tensors_size,
-        )
-        tot_t_compute += t_compute
-        tot_t_io += t_io
-        partial_paths.append(sd_out_path)
-        utils.free_memory()
+    with utils.ProgressBar(
+        total=n_weights,
+        desc="Merge",
+        units="layers",
+        enabled=use_progress_bar,
+    ) as progress_bar:
+        for i, names_batch in enumerate(weights_names_batches, start=1):
+            mem1 = utils.get_cpu_reserved_memory_gb()
+            mem1_gpu = utils.get_gpu_reserved_memory_gb()
+            sd_fname = f"model-{i:05d}-{n_batches:05d}.safetensors"
+            sd_out_path = merging_tmp_dir / sd_fname
+            batch_tot_tensors_size, t_compute, t_io = _merge_one_batch(
+                sd_base_path=sd_base_path,
+                sd_merged_paths=sd_merged_paths,
+                sd_out_path=sd_out_path,
+                names_batch=names_batch,
+                method=method,
+                sparsity=sparsity,
+                use_ties=use_ties,
+                lambda_param=lambda_param,
+                seed_dict=seed_dict,
+                seed_dict_new=seed_dict_new,
+                device=device,
+                progress_bar=progress_bar,
+            )
+            _update_hf_index_in_place(
+                hf_index=hf_index,
+                names_batch=names_batch,
+                sd_fname=sd_fname,
+                batch_tot_tensors_size=batch_tot_tensors_size,
+            )
+            tot_t_compute += t_compute
+            tot_t_io += t_io
+            partial_paths.append(sd_out_path)
+            utils.free_memory()
 
         mem2 = utils.get_cpu_reserved_memory_gb()
         mem2_gpu = utils.get_gpu_reserved_memory_gb()
@@ -542,6 +555,7 @@ def merge(
     sd_output_path,
     seed_dict,
     merge_device,
+    use_progress_bar=True,
 ):
     logger.info(f"{merge_device=}")
     start = time.perf_counter()
@@ -567,6 +581,7 @@ def merge(
             merging_tmp_dir=merging_tmp_dir,
             seed_dict=seed_dict,
             device=merge_device,
+            use_progress_bar=use_progress_bar,
         )
         tot_t_compute += t_compute
         tot_t_io += t_io
