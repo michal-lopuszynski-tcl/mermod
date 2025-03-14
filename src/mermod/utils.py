@@ -31,16 +31,18 @@ def get_cpu_reserved_memory_gb():
     pid = os.getpid()
 
     # Read memory info from /proc/[pid]/status
-    with open(f"/proc/{pid}/status", "r") as f:
-        for line in f:
-            if "VmRSS:" in line:
-                # Extract the memory value (in kB)
-                memory_gb = int(line.split()[1])
-                # Convert to MB
-                memory_mb = memory_gb / 1024 / 1024
-                return memory_mb
-
-    return None
+    try:
+        with open(f"/proc/{pid}/status", "r") as f:
+            for line in f:
+                if "VmRSS:" in line:
+                    # Extract the memory value (in kB)
+                    memory_gb = int(line.split()[1])
+                    # Convert to MB
+                    memory_mb = memory_gb / 1024 / 1024
+                    return memory_mb
+        return None
+    except Exception:
+        return None
 
 
 def get_gpu_reserved_memory_gb() -> float:
