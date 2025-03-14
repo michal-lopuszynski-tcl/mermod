@@ -307,30 +307,6 @@ def merge_to_base_sd(
         else:
             raise ValueError(f'Unknown merge method - "{method}"')
 
-        # LOG STATISTICS
-        # for k, mask, pruned_diff, diff in zip(
-        #     range(len(masks)), masks, trimmed_task_vectors, task_vectors
-        # ):
-        #     selected_values_abs_mean = (
-        #         pruned_diff.abs().sum() / (mask == 1.0).sum()
-        #     ).item()
-        #     discarded_values_abs_mean = (
-        #         ((1.0 - mask) * diff.abs()).sum() / (mask == 0.0).sum()
-        #     ).item()
-        #     logger.info(f"Diff index: {k}, mask mean: {mask.mean().item()}")
-        #     logger.info(
-        #         f"Diff index: {k}, abs +: {selected_values_abs_mean}, "
-        #         f"abs -: {discarded_values_abs_mean}"
-        #     )
-
-        # mask_intersection = masks[0]
-        # for tensor in masks[1:]:
-        #     mask_intersection *= tensor
-        # logger.info(
-        #     f"Param: {name}, mask sum: {mask_sum.mean().item()}, mask intersection:"
-        #     f" {mask_intersection.mean().item()}"
-        # )
-
         # APPLY TIES ALIGNMENT
 
         if use_ties:
@@ -437,109 +413,17 @@ def _merge_one_batch(
     return tot_tensors_size, tot_t_compute, tot_t_io
 
 
-def _get_empty_hf_index():
+def get_empty_hf_index():
     return {"metadata": {"total_size": 0}, "weight_map": {}}
 
 
-def _update_hf_index_in_place(hf_index, names_batch, sd_fname, batch_tot_tensors_size):
+def update_hf_index_in_place(hf_index, names_batch, sd_fname, batch_tot_tensors_size):
     hf_index["metadata"]["total_size"] += batch_tot_tensors_size
     weight_map = hf_index["weight_map"]
 
     for wn in names_batch:
         assert wn not in weight_map
         weight_map[wn] = sd_fname
-
-
-def _merge(
-    *,
-    sd_base_path,
-    sd_merged_paths,
-    method,
-    sparsity,
-    use_ties,
-    lambda_param,
-    weight_batch_size,
-    weight_batches_custom,
-    seed_dict,
-    merging_tmp_dir,
-    device,
-    use_progress_bar,
-):
-    tot_t_io, tot_t_compute = 0.0, 0.0
-    logger.info(f"{sd_base_path=}")
-    logger.info(f"{sd_merged_paths=}")
-
-    weight_names, t_io = io.get_weight_names(sd_base_path)
-    tot_t_io += t_io
-    weights_names_batches = prepare_batches(
-        weight_names=weight_names,
-        weight_batch_size=weight_batch_size,
-        weight_batches_custom=weight_batches_custom,
-        reverse=False,
-    )
-
-    n_weights = len(weight_names)
-    n_batches = len(weights_names_batches)
-    partial_paths = []
-    logger.info(f"{n_weights=} {n_batches=} {weight_batch_size=}")
-
-    seed_dict_new = {}
-    hf_index = _get_empty_hf_index()
-
-    with utils.ProgressBar(
-        total=n_weights,
-        desc="Merge",
-        units="layers",
-        enabled=use_progress_bar,
-    ) as progress_bar:
-        for i, names_batch in enumerate(weights_names_batches, start=1):
-            mem1 = utils.get_cpu_reserved_memory_gb()
-            mem1_gpu = utils.get_gpu_reserved_memory_gb()
-            sd_fname = f"model-{i:05d}-{n_batches:05d}.safetensors"
-            sd_out_path = merging_tmp_dir / sd_fname
-            batch_tot_tensors_size, t_compute, t_io = _merge_one_batch(
-                sd_base_path=sd_base_path,
-                sd_merged_paths=sd_merged_paths,
-                sd_out_path=sd_out_path,
-                names_batch=names_batch,
-                method=method,
-                sparsity=sparsity,
-                use_ties=use_ties,
-                lambda_param=lambda_param,
-                seed_dict=seed_dict,
-                seed_dict_new=seed_dict_new,
-                device=device,
-                progress_bar=progress_bar,
-            )
-            _update_hf_index_in_place(
-                hf_index=hf_index,
-                names_batch=names_batch,
-                sd_fname=sd_fname,
-                batch_tot_tensors_size=batch_tot_tensors_size,
-            )
-            tot_t_compute += t_compute
-            tot_t_io += t_io
-            partial_paths.append(sd_out_path)
-            utils.free_memory()
-
-        mem2 = utils.get_cpu_reserved_memory_gb()
-        mem2_gpu = utils.get_gpu_reserved_memory_gb()
-        logger.info(f"MEM {mem2=:.2f} {mem2_gpu=:.2f}")
-        memd = mem1 - mem2
-        prefix = "MEM CPU usage during iteration - "
-        logger.info(f"{prefix} {mem1:.2f} -> {mem2:.2f} GB [collected {memd:.2f} GB]")
-        prefix = "MEM GPU usage during iteration - "
-        memd = mem1_gpu - mem2_gpu
-        msg = f"{prefix} {mem1_gpu:.2f} -> {mem2_gpu:.2f} GB [collected {memd:.2f} GB]"
-        logger.info(msg)
-
-    with open(merging_tmp_dir / io.HF_MODEL_INDEX_FNAME, "wt") as f:
-        json.dump(hf_index, f)
-
-    if seed_dict is None:
-        return partial_paths, seed_dict_new, (tot_t_compute, tot_t_io)
-    else:
-        return partial_paths, seed_dict, (tot_t_compute, tot_t_io)
 
 
 def merge(
@@ -569,22 +453,78 @@ def merge(
         merging_tmp_dir = io.mkdir_tmp()
 
     try:
-        partial_paths, seed_dict, (t_compute, t_io) = _merge(
-            sd_base_path=sd_base_path,
-            sd_merged_paths=sd_merged_paths,
-            method=method,
-            sparsity=sparsity,
-            use_ties=use_ties,
-            lambda_param=lambda_param,
+        logger.info(f"{sd_base_path=}")
+        logger.info(f"{sd_merged_paths=}")
+
+        weight_names, t_io = io.get_weight_names(sd_base_path)
+        tot_t_io += t_io
+        weights_names_batches = prepare_batches(
+            weight_names=weight_names,
             weight_batch_size=weight_batch_size,
             weight_batches_custom=weight_batches_custom,
-            merging_tmp_dir=merging_tmp_dir,
-            seed_dict=seed_dict,
-            device=merge_device,
-            use_progress_bar=use_progress_bar,
+            reverse=False,
         )
-        tot_t_compute += t_compute
-        tot_t_io += t_io
+
+        n_weights = len(weight_names)
+        n_batches = len(weights_names_batches)
+        partial_paths = []
+        logger.info(f"{n_weights=} {n_batches=} {weight_batch_size=}")
+
+        seed_dict_new = {}
+        hf_index = get_empty_hf_index()
+
+        with utils.ProgressBar(
+            total=n_weights,
+            desc="Merge",
+            units="layers",
+            enabled=use_progress_bar,
+        ) as progress_bar:
+            for i, names_batch in enumerate(weights_names_batches, start=1):
+                mem1 = utils.get_cpu_reserved_memory_gb()
+                mem1_gpu = utils.get_gpu_reserved_memory_gb()
+                sd_fname = f"model-{i:05d}-{n_batches:05d}.safetensors"
+                sd_out_path = merging_tmp_dir / sd_fname
+                batch_tot_tensors_size, t_compute, t_io = _merge_one_batch(
+                    sd_base_path=sd_base_path,
+                    sd_merged_paths=sd_merged_paths,
+                    sd_out_path=sd_out_path,
+                    names_batch=names_batch,
+                    method=method,
+                    sparsity=sparsity,
+                    use_ties=use_ties,
+                    lambda_param=lambda_param,
+                    seed_dict=seed_dict,
+                    seed_dict_new=seed_dict_new,
+                    device=merge_device,
+                    progress_bar=progress_bar,
+                )
+                update_hf_index_in_place(
+                    hf_index=hf_index,
+                    names_batch=names_batch,
+                    sd_fname=sd_fname,
+                    batch_tot_tensors_size=batch_tot_tensors_size,
+                )
+                tot_t_compute += t_compute
+                tot_t_io += t_io
+                partial_paths.append(sd_out_path)
+                utils.free_memory()
+
+            mem2 = utils.get_cpu_reserved_memory_gb()
+            mem2_gpu = utils.get_gpu_reserved_memory_gb()
+            logger.info(f"MEM {mem2=:.2f} {mem2_gpu=:.2f}")
+            memd = mem1 - mem2
+            prefix = "MEM CPU usage during iteration - "
+            logger.info(f"{prefix} {mem1:.2f} -> {mem2:.2f} GB [freed {memd:.2f} GB]")
+            prefix = "MEM GPU usage during iteration - "
+            memd = mem1_gpu - mem2_gpu
+            msg = f"{prefix} {mem1_gpu:.2f} -> {mem2_gpu:.2f} GB [freed {memd:.2f} GB]"
+            logger.info(msg)
+
+        with open(merging_tmp_dir / io.HF_MODEL_INDEX_FNAME, "wt") as f:
+            json.dump(hf_index, f)
+
+        if seed_dict is None:
+            seed_dict = seed_dict_new
 
         merge_device = torch.device("cpu")
         if merging_tmp_dir != sd_output_path:
