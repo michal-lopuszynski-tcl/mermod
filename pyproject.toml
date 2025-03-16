@@ -16,7 +16,8 @@ classifiers = [
 ]
 dynamic = ["version", "dependencies"]
 [project.urls]
-homepage = "None"
+homepage = "https://github.com/michal-lopuszynski-tcl/mermod"
+
 
 [tool.setuptools.packages.find]
 where = ["src"]
