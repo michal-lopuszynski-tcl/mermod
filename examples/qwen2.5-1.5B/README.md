@@ -19,7 +19,7 @@ in between the source models.
 pip install -r requirements
 ```
 
-2. Be sure to have downloaded the models `Qwen/Qwen2.5-1.5B` and `Qwen/Qwen2.5-Coder-1.5B`
+2. Download the models `Qwen/Qwen2.5-1.5B` and `Qwen/Qwen2.5-Coder-1.5B` from HuggingFace
 
 3. Edit state dicts paths in `configs/configs.json` to contain the location of model weights on
    our machine
