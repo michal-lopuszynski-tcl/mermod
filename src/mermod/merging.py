@@ -448,7 +448,7 @@ def merge(
 
     if io.get_sd_type(sd_output_path, should_exist=False) == io.FORMAT_HF:
         merging_tmp_dir = sd_output_path
-        merging_tmp_dir.mkdir(exist_ok=True)
+        merging_tmp_dir.mkdir(exist_ok=True, parents=True)
     else:
         merging_tmp_dir = io.mkdir_tmp()
 
