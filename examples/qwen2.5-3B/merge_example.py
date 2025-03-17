@@ -1,12 +1,9 @@
-import argparse
 import datetime
-import copy
 import json
 import logging
 import pathlib
 import random
 import os
-import shutil
 import string
 import time
 from typing import Any
@@ -21,7 +18,7 @@ import tabulate
 logger = logging.getLogger()
 
 
-MODEL_NAME = "Qwen/Qwen2.5-3B"
+MODEL_NAME = "Qwen/Qwen2.5-1.5B"
 
 
 def setup_logging():
