@@ -8,15 +8,14 @@ Simple model merging package.
 pip install memrmod
 ```
 
-## Example
+## Usage example
 
-See usage example [here](examples/qwen2.5-1.5B).
+See example for merging for `Qwen/Qwen2.5-1.5B` models [here](examples/qwen2.5-1.5B).
 
-## Alternatives
-
-Alternative model merging packages:
+## Alternative model merging packages
 
 + [Mergekit](https://github.com/arcee-ai/mergekit)
+
 + [PEFT merging functionality](https://huggingface.co/blog/peft_merging)
 
 
