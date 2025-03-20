@@ -50,7 +50,8 @@ In our case we have two base models:
    worse at coding (e.g. measured by `mbpp` benchmark)
 * `Qwen2.5-Coder-1.5B` - worse ad general capabilities, better at coding
 
-Model merging allows us to interpolate between the capabilities.
+Model merging allows us to interpolate between the capabilities of input models.
+Sometimes it is even possible to obtain synergy between the input model strengths.
 
 The benchmark results for merged models are compared with baseline models in the figure below:
 
